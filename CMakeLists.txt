@@ -81,6 +81,7 @@ list(APPEND OPTIONAL_PACKAGES "Sphinx")
 list(APPEND OPTIONAL_PACKAGES "HDF5")
 list(APPEND OPTIONAL_PACKAGES "VTK")
 list(APPEND OPTIONAL_PACKAGES "QT")
+list(APPEND OPTIONAL_PACKAGES "ViennaCL")
 
 # Add options
 foreach (OPTIONAL_PACKAGE ${OPTIONAL_PACKAGES})
@@ -459,6 +460,11 @@ if (DOLFIN_ENABLE_VTK)
       message(STATUS "Found VTK: ${VTK_DIR} (found version \"${VTK_VERSION}\")")
     endif()
   endif()
+endif()
+
+# Check for ViennaCL
+if (DOLFIN_ENABLE_VIENNACL)
+  find_package(ViennaCL)
 endif()
 
 #------------------------------------------------------------------------------
