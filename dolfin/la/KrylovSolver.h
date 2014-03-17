@@ -19,14 +19,14 @@
 // Modified by Anders Logg, 2008.
 //
 // First added:  2007-07-03
-// Last changed: 2011-10-19
+// Last changed: 2013-11-25
 
 #ifndef __KRYLOV_SOLVER_H
 #define __KRYLOV_SOLVER_H
 
 #include <string>
 #include <vector>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/scoped_ptr.hpp>
 #include "GenericLinearSolver.h"
 
@@ -50,7 +50,7 @@ namespace dolfin
                  std::string preconditioner="default");
 
     /// Constructor
-    KrylovSolver(boost::shared_ptr<const GenericLinearOperator> A,
+    KrylovSolver(std::shared_ptr<const GenericLinearOperator> A,
                  std::string method="default",
                  std::string preconditioner="default");
 
@@ -58,11 +58,11 @@ namespace dolfin
     ~KrylovSolver();
 
     /// Set operator (matrix)
-    void set_operator(const boost::shared_ptr<const GenericLinearOperator> A);
+    void set_operator(std::shared_ptr<const GenericLinearOperator> A);
 
     /// Set operator (matrix) and preconditioner matrix
-    void set_operators(const boost::shared_ptr<const GenericLinearOperator> A,
-                       const boost::shared_ptr<const GenericLinearOperator> P);
+    void set_operators(std::shared_ptr<const GenericLinearOperator> A,
+                       std::shared_ptr<const GenericLinearOperator> P);
 
     /// Set null space of the operator (matrix). This is used to solve
     /// singular systems
@@ -78,13 +78,20 @@ namespace dolfin
     /// Default parameter values
     static Parameters default_parameters();
 
+    /// Update solver parameters (pass parameters down to wrapped implementation)
+    virtual void update_parameters(const Parameters& parameters)
+    {
+      this->parameters.update(parameters);
+      solver->parameters.update(parameters);
+    }
+
   private:
 
     // Initialize solver
     void init(std::string method, std::string preconditioner);
 
     // Solver
-    boost::shared_ptr<GenericLinearSolver> solver;
+    std::shared_ptr<GenericLinearSolver> solver;
 
   };
 }

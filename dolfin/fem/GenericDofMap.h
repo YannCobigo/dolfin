@@ -28,7 +28,7 @@
 #include <utility>
 #include <vector>
 #include <boost/multi_array.hpp>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
 
@@ -61,11 +61,12 @@ namespace dolfin
     /// True if dof map is a view into another map (is a sub-dofmap)
     virtual bool is_view() const = 0;
 
-    /// Return the dimension of the global finite element function space
+    /// Return the dimension of the global finite element function
+    /// space
     virtual std::size_t global_dimension() const = 0;
 
-    /// Return the dimension of the local finite element function space
-    /// on a cell
+    /// Return the dimension of the local finite element function
+    /// space on a cell
     virtual std::size_t cell_dimension(std::size_t index) const = 0;
 
     /// Return the maximum dimension of the local finite element
@@ -84,7 +85,7 @@ namespace dolfin
 
     /// Restriction if any. If the dofmap is not restricted, a null
     /// pointer is returned.
-    virtual boost::shared_ptr<const Restriction> restriction() const = 0;
+    virtual std::shared_ptr<const Restriction> restriction() const = 0;
 
     /// Return the ownership range (dofs in this range are owned by
     /// this process)
@@ -120,40 +121,48 @@ namespace dolfin
     /// Tabulate the coordinates of all dofs on a cell (UFC cell version)
     virtual
       void tabulate_coordinates(boost::multi_array<double, 2>& coordinates,
-                                const ufc::cell& ufc_cell) const = 0;
+                                const std::vector<double>& vertex_coordinates,
+                                const Cell& cell) const = 0;
 
-    /// Tabulate the coordinates of all dofs owned by this process
+    /// Tabulate the coordinates of all dofs owned by this
+    /// process. This function is typically used by preconditioners
+    /// that require the spatial coordinates of dofs, for example
+    /// for re-partitioning or nullspace computations. The format for
+    /// the return vector is [x0, y0, z0, x1, y1, z1, . . .].
     virtual std::vector<double>
       tabulate_all_coordinates(const Mesh& mesh) const = 0;
 
     /// Create a copy of the dof map
-    virtual boost::shared_ptr<GenericDofMap> copy() const = 0;
+    virtual std::shared_ptr<GenericDofMap> copy() const = 0;
 
     /// Create a new dof map on new mesh
-    virtual boost::shared_ptr<GenericDofMap>
+    virtual std::shared_ptr<GenericDofMap>
       create(const Mesh& new_mesh) const = 0;
 
     /// Extract sub dofmap component
-    virtual boost::shared_ptr<GenericDofMap>
+    virtual std::shared_ptr<GenericDofMap>
         extract_sub_dofmap(const std::vector<std::size_t>& component,
                            const Mesh& mesh) const = 0;
 
     /// Create a "collapsed" a dofmap (collapses from a sub-dofmap view)
-    virtual boost::shared_ptr<GenericDofMap>
+    virtual std::shared_ptr<GenericDofMap>
         collapse(boost::unordered_map<std::size_t, std::size_t>& collapsed_map,
                  const Mesh& mesh) const = 0;
 
     /// Return list of global dof indices on this process
-    virtual std::vector<dolfin::la_index> dofs(std::size_t r0,
-                                               std::size_t r1) const = 0;
+    virtual std::vector<dolfin::la_index> dofs() const = 0;
 
-    /// Set dof entries in vector to a specified value. Parallel layout
-    /// of vector must be consistent with dof map range.
+    /// Set dof entries in vector to a specified value. Parallel
+    /// layout of vector must be consistent with dof map range. This
+    /// function is typically used to construct the null space of a
+    /// matrix operator
     virtual void set(GenericVector& x, double value) const = 0;
 
     /// Set dof entries in vector to the value*x[i], where x[i] is the
     /// spatial coordinate of the dof. Parallel layout of vector must
-    /// be consistent with dof map range.
+    /// be consistent with dof map range. This function is typically
+    /// used to construct the null space of a matrix operator, e.g. rigid
+    /// body rotations.
     virtual void set_x(GenericVector& x, double value, std::size_t component,
                        const Mesh& mesh) const = 0;
 
@@ -169,7 +178,7 @@ namespace dolfin
     virtual std::string str(bool verbose) const = 0;
 
     /// Subdomain mapping constrained boundaries, e.g. periodic conditions
-    boost::shared_ptr<const SubDomain> constrained_domain;
+    std::shared_ptr<const SubDomain> constrained_domain;
 
     /// Dofmap block size, e.g. 3 for 3D elasticity with a suitable
     // ordered dofmap

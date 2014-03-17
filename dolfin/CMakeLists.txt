@@ -55,10 +55,8 @@ list(APPEND DOLFIN_CXX_DEFINITIONS ${LIBXML2_DEFINITIONS})
 # UFC
 list(APPEND DOLFIN_DEP_INCLUDE_DIRECTORIES ${UFC_INCLUDE_DIRS})
 
-# Armadillo
-list(APPEND DOLFIN_DEP_SYSTEM_INCLUDE_DIRECTORIES ${ARMADILLO_INCLUDE_DIRS})
-list(APPEND DOLFIN_TARGET_LINK_LIBRARIES ${ARMADILLO_LIBRARIES})
-list(APPEND DOLFIN_LINK_FLAGS ${ARMADILLO_LINK_FLAGS})
+# Eigen3
+list(APPEND DOLFIN_DEP_SYSTEM_INCLUDE_DIRECTORIES ${EIGEN3_INCLUDE_DIR})
 
 # Boost
 list(APPEND DOLFIN_DEP_SYSTEM_INCLUDE_DIRECTORIES ${Boost_INCLUDE_DIR})
@@ -106,12 +104,16 @@ if (DOLFIN_ENABLE_PETSC AND PETSC_FOUND)
   if (PETSC_CUSP_FOUND)
     list(APPEND DOLFIN_CXX_DEFINITIONS "-DHAS_PETSC_CUSP")
   endif()
+
+  if (PETSC_ENABLE_SNES)
+    list(APPEND DOLFIN_CXX_DEFINITIONS "-DENABLE_PETSC_SNES")
+  endif()
 endif()
 
 # petsc4py
 if (DOLFIN_ENABLE_PETSC AND DOLFIN_ENABLE_PETSC4PY AND PETSC4PY_FOUND)
-  list(APPEND DOLFIN_CXX_DEFINITIONS "-DHAS_PETSC4PY")
-  list(APPEND DOLFIN_DEP_SYSTEM_INCLUDE_DIRECTORIES ${PETSC4PY_INCLUDE_DIRS})
+  list(APPEND DOLFIN_PYTHON_DEFINITIONS "-DHAS_PETSC4PY")
+  list(APPEND PYTHON_INCLUDE_DIRS ${PETSC4PY_INCLUDE_DIRS})
 endif()
 
 # UMFPACK
@@ -188,8 +190,6 @@ if (DOLFIN_ENABLE_MPI AND MPI_CXX_FOUND)
   list(APPEND DOLFIN_DEP_INCLUDE_DIRECTORIES ${MPI_CXX_INCLUDE_PATH})
   set(DOLFIN_CXX_FLAGS "${DOLFIN_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS}")
 
-  # FIXME: Is this linker flag required?
-  #list(APPEND DOLFIN_LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
 endif()
 
 # OpenMP
@@ -223,41 +223,26 @@ if (DOLFIN_ENABLE_VTK AND VTK_FOUND)
   list(APPEND DOLFIN_CXX_DEFINITIONS "-DHAS_VTK")
   list(APPEND DOLFIN_DEP_SYSTEM_INCLUDE_DIRECTORIES ${VTK_INCLUDE_DIRS})
 
-  if (NOT VTK_LIBRARIES)
-    # FIXME: Check which of these we actually need.
-    set(VTK_LIBRARIES
-      vtkCommon
-      vtkFiltering
-      vtkImaging
-      vtkGraphics
-      vtkGenericFiltering
-      vtkIO
-      vtkRendering
-      vtkVolumeRendering
-      vtkHybrid
-      vtkWidgets
-      vtkParallel
-      vtkInfovis
-      vtkGeovis
-      vtkViews
-      vtkCharts
-      )
-  endif()
-
-  # Loop over libs and get full path
   foreach (lib ${VTK_LIBRARIES})
-    find_library(VTK_LIB_${lib} ${lib} HINTS ${VTK_LIBRARY_DIRS})
-    if (VTK_LIB_${lib})
-      list(APPEND DOLFIN_VTK_LIBRARIES ${VTK_LIB_${lib}})
-    endif()
+    list(APPEND DOLFIN_VTK_LIBRARIES ${lib})
   endforeach()
 
   # Check if the QVTK library is found
   if (DOLFIN_ENABLE_QT AND QT_FOUND)
-    find_library(VTK_LIB_QVTK QVTK HINTS ${VTK_LIBRARY_DIRS})
+    if ("${VTK_MAJOR_VERSION}" STREQUAL "5")
+      find_library(VTK_LIB_QVTK QVTK HINTS ${VTK_LIBRARY_DIRS} NO_DEFAULT_PATH)
+      find_library(VTK_LIB_QVTK QVTK HINTS ${VTK_LIBRARY_DIRS})
+      if (VTK_LIB_QVTK)
+	list(APPEND DOLFIN_VTK_LIBRARIES ${VTK_LIB_QVTK})
+      endif()
+    else()
+      if (TARGET vtkGUISupportQt)
+	set(VTK_LIB_QVTK TRUE)
+      endif()
+    endif()
+
     if (VTK_LIB_QVTK)
       list(APPEND DOLFIN_CXX_DEFINITIONS "-DHAS_QVTK")
-      list(APPEND DOLFIN_VTK_LIBRARIES ${VTK_LIB_QVTK})
     else()
       message(STATUS "QVTK not found, disabling QT for plotting")
     endif()
@@ -282,7 +267,9 @@ if (DOLFIN_ENABLE_VTK AND VTK_FOUND)
   #  message(STATUS "vtkExodusIIWriter not found, disabling Exodus file writing")
   #endif()
 
-  list(APPEND DOLFIN_TARGET_LINK_LIBRARIES ${DOLFIN_VTK_LIBRARIES})
+  # Append to EXTRA libraries, so they are not linked with demos (this fails
+  # with VTK6 unless the vtk macros are also installed).
+  list(APPEND DOLFIN_EXTRA_TARGET_LINK_LIBRARIES ${DOLFIN_VTK_LIBRARIES})
 endif()
 
 # ViennaCL
@@ -317,9 +304,10 @@ endif()
 include_directories(${DOLFIN_SOURCE_DIR} ${DOLFIN_DEP_INCLUDE_DIRECTORIES})
 include_directories(SYSTEM ${DOLFIN_DEP_SYSTEM_INCLUDE_DIRECTORIES})
 
-# Add CXX defintions
+# Add CXX definitions
 add_definitions(${DOLFIN_CXX_DEFINITIONS})
-add_definitions(-DDOLFIN_VERSION="${DOLFIN_VERSION}")
+add_definitions(-DDOLFIN_VERSION="${DOLFIN_VERSION}"
+  -DDOLFIN_GIT_COMMIT_HASH="${GIT_COMMIT_HASH}")
 
 # Add flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DOLFIN_CXX_FLAGS}")
@@ -334,8 +322,7 @@ set_target_properties(dolfin PROPERTIES ${DOLFIN_LIBRARY_PROPERTIES})
 string(STRIP DOLFIN_TARGET_LINK_LIBRARIES "${DOLFIN_TARGET_LINK_LIBRARIES}")
 
 # Add DOLFIN target libraries
-target_link_libraries(dolfin ${DOLFIN_TARGET_LINK_LIBRARIES})
-
+target_link_libraries(dolfin ${DOLFIN_TARGET_LINK_LIBRARIES} ${DOLFIN_EXTRA_TARGET_LINK_LIBRARIES})
 #------------------------------------------------------------------------------
 # SWIG
 
@@ -449,6 +436,7 @@ configure_file(${DOLFIN_CMAKE_DIR}/templates/dolfin-config-version.cmake.in
   ${CMAKE_BINARY_DIR}/dolfin/dolfin-config-version.cmake @ONLY)
 configure_file(${DOLFIN_CMAKE_DIR}/templates/UseDOLFIN.cmake.in
   ${CMAKE_BINARY_DIR}/dolfin/UseDOLFIN.cmake @ONLY)
+
 install(
   FILES
     ${CMAKE_BINARY_DIR}/dolfin/DOLFINConfig.cmake

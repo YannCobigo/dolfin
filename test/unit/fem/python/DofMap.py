@@ -1,6 +1,6 @@
 """Unit tests for the fem interface"""
 
-# Copyright (C) 2009 Garth N. Wells
+# Copyright (C) 2009-2014 Garth N. Wells
 #
 # This file is part of DOLFIN.
 #
@@ -16,9 +16,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
-#
-# First added:  2009-07-28
-# Last changed: 2009-07-28
 
 import unittest
 import numpy as np
@@ -235,11 +232,14 @@ class DofMapTest(unittest.TestCase):
             self.assertRaises(RuntimeError, lambda : dof_to_vertex_map(W))
             W = FunctionSpace(self.mesh, "CG", 2)
             self.assertRaises(RuntimeError, lambda : dof_to_vertex_map(W))
+            W = VectorFunctionSpace(self.mesh, "CG", 1)
+            self.assertRaises(RuntimeError, lambda : dof_to_vertex_map(W.sub(0)))
 
 
     def test_entity_dofs(self):
-        
-        # Test that num entity dofs is correctly wrapped to dolfin::DofMap
+
+        # Test that num entity dofs is correctly wrapped to
+        # dolfin::DofMap
         V = FunctionSpace(self.mesh, "CG", 1)
         self.assertEqual(V.dofmap().num_entity_dofs(0), 1)
         self.assertEqual(V.dofmap().num_entity_dofs(1), 0)
@@ -264,7 +264,7 @@ class DofMapTest(unittest.TestCase):
         self.assertEqual(V.dofmap().num_entity_dofs(0), 0)
         self.assertEqual(V.dofmap().num_entity_dofs(1), 0)
         self.assertEqual(V.dofmap().num_entity_dofs(2), 1)
-        
+
         V = FunctionSpace(self.mesh, "DG", 1)
         self.assertEqual(V.dofmap().num_entity_dofs(0), 0)
         self.assertEqual(V.dofmap().num_entity_dofs(1), 0)
@@ -272,19 +272,19 @@ class DofMapTest(unittest.TestCase):
 
         V = VectorFunctionSpace(self.mesh, "CG", 1)
 
-        # Note this numbering is dependent on FFC and can change
-        # This test is here just to check that we get correct numbers
+        # Note this numbering is dependent on FFC and can change This
+        # test is here just to check that we get correct numbers
         # mapped from ufc generated code to dolfin
         for i, cdofs in enumerate([[0,3], [1,4], [2,5]]):
             dofs = V.dofmap().tabulate_entity_dofs(0, i)
             self.assertTrue(all(d==cd for d, cd in zip(dofs, cdofs)))
 
     def test_mpi_dofmap_stats(self):
-        if MPI.num_processes() > 1:
-            
+
+        if MPI.size(self.mesh.mpi_comm()) > 1:
+
             V = FunctionSpace(self.mesh, "CG", 1)
-            self.assertTrue(len(V.dofmap().shared_dofs())>0)
-            self.assertTrue(len(V.dofmap().off_process_owner())>0)
+            self.assertTrue(len(V.dofmap().shared_dofs()) > 0)
             neighbours = V.dofmap().neighbours()
             for processes in V.dofmap().shared_dofs().values():
                 for process in processes:
@@ -292,8 +292,8 @@ class DofMapTest(unittest.TestCase):
 
             for owner in V.dofmap().off_process_owner().values():
                 self.assertTrue(owner in neighbours)
-                
-        
+
+
 if __name__ == "__main__":
     print ""
     print "Testing PyDOLFIN DofMap operations"

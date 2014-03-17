@@ -16,9 +16,10 @@
 // along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
 //
 // Modified by Johannes Ring, 2012
+// Modified by Benjamin Kehlet, 2013
 //
 // First added:  2012-04-13
-// Last changed: 2012-05-03
+// Last changed: 2013-06-24
 
 #include <sstream>
 
@@ -31,8 +32,8 @@ using namespace dolfin;
 //-----------------------------------------------------------------------------
 // CSGUnion
 //-----------------------------------------------------------------------------
-CSGUnion::CSGUnion(boost::shared_ptr<CSGGeometry> g0,
-                   boost::shared_ptr<CSGGeometry> g1)
+CSGUnion::CSGUnion(std::shared_ptr<CSGGeometry> g0,
+                   std::shared_ptr<CSGGeometry> g1)
   : _g0(g0), _g1(g1)
 {
   assert(g0);
@@ -46,12 +47,8 @@ CSGUnion::CSGUnion(boost::shared_ptr<CSGGeometry> g0,
                  "Dimensions of geomestries don't match (%d vs %d)",
                  g0->dim(), g1->dim());
   }
-}
-//-----------------------------------------------------------------------------
-std::size_t CSGUnion::dim() const
-{
-  assert(_g0->dim() == _g1->dim());
-  return _g0->dim();
+
+  dim_ = g0->dim();
 }
 //-----------------------------------------------------------------------------
 std::string CSGUnion::str(bool verbose) const
@@ -80,8 +77,8 @@ std::string CSGUnion::str(bool verbose) const
 //-----------------------------------------------------------------------------
 // CSGDifference
 //-----------------------------------------------------------------------------
-CSGDifference::CSGDifference(boost::shared_ptr<CSGGeometry> g0,
-			     boost::shared_ptr<CSGGeometry> g1)
+CSGDifference::CSGDifference(std::shared_ptr<CSGGeometry> g0,
+			     std::shared_ptr<CSGGeometry> g1)
   : _g0(g0), _g1(g1)
 {
   assert(g0);
@@ -95,12 +92,8 @@ CSGDifference::CSGDifference(boost::shared_ptr<CSGGeometry> g0,
                  "Dimensions of geomestries don't match (%d vs %d)",
                  g0->dim(), g1->dim());
   }
-}
-//-----------------------------------------------------------------------------
-std::size_t CSGDifference::dim() const
-{
-  assert(_g0->dim() == _g1->dim());
-  return _g0->dim();
+
+  dim_ = g0->dim();
 }
 //-----------------------------------------------------------------------------
 std::string CSGDifference::str(bool verbose) const
@@ -129,8 +122,8 @@ std::string CSGDifference::str(bool verbose) const
 //-----------------------------------------------------------------------------
 // CSGIntersection
 //-----------------------------------------------------------------------------
-CSGIntersection::CSGIntersection(boost::shared_ptr<CSGGeometry> g0,
-                                 boost::shared_ptr<CSGGeometry> g1)
+CSGIntersection::CSGIntersection(std::shared_ptr<CSGGeometry> g0,
+                                 std::shared_ptr<CSGGeometry> g1)
   : _g0(g0), _g1(g1)
 {
   assert(g0);
@@ -144,12 +137,8 @@ CSGIntersection::CSGIntersection(boost::shared_ptr<CSGGeometry> g0,
                  "Dimensions of geomestries don't match (%d vs %d)",
                  g0->dim(), g1->dim());
   }
-}
-//-----------------------------------------------------------------------------
-std::size_t CSGIntersection::dim() const
-{
-  assert(_g0->dim() == _g1->dim());
-  return _g0->dim();
+
+  dim_ = g0->dim();
 }
 //-----------------------------------------------------------------------------
 std::string CSGIntersection::str(bool verbose) const

@@ -15,8 +15,10 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
 //
+// Modified by Mikael Mortensen, 2014
+//
 // First added:  2005-12-02
-// Last changed: 2012-11-09
+// Last changed: 2014-02-17
 
 #ifndef __UNIT_SQUARE_MESH_H
 #define __UNIT_SQUARE_MESH_H
@@ -54,11 +56,35 @@ namespace dolfin
     /// *Example*
     ///     .. code-block:: c++
     ///
-    ///         UnitSquare mesh1(32, 32);
-    ///         UnitSquare mesh2(32, 32, "crossed");
+    ///         UnitSquareMesh mesh1(32, 32);
+    ///         UnitSquareMesh mesh2(32, 32, "crossed");
     ///
     UnitSquareMesh(std::size_t nx, std::size_t ny, std::string diagonal="right")
       : RectangleMesh(0.0, 0.0, 1.0, 1.0, nx, ny, diagonal) {}
+
+    /// Create a uniform finite element _Mesh_ over the unit square
+    /// [0,1] x [0,1].
+    ///
+    /// *Arguments*
+    ///     comm (MPI_Comm)
+    ///         MPI communicator
+    ///     nx (std::size_t)
+    ///         Number of cells in horizontal direction.
+    ///     ny (std::size_t)
+    ///         Number of cells in vertical direction.
+    ///     diagonal (std::string)
+    ///         Optional argument: A std::string indicating
+    ///         the direction of the diagonals.
+    ///
+    /// *Example*
+    ///     .. code-block:: c++
+    ///
+    ///         UnitSquareMesh mesh1(MPI_COMM_WORLD, 32, 32);
+    ///         UnitSquareMesh mesh2(MPI_COMM_WORLD, 32, 32, "crossed");
+    ///
+    UnitSquareMesh(MPI_Comm comm, std::size_t nx, std::size_t ny,
+                   std::string diagonal="right")
+      : RectangleMesh(comm, 0.0, 0.0, 1.0, 1.0, nx, ny, diagonal) {}
 
   };
 

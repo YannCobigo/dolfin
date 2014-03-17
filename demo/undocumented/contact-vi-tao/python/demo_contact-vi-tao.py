@@ -31,8 +31,8 @@ if not has_tao():
     print "DOLFIN must be compiled with TAO to run this demo."
     exit(0)
 
-# Create mesh (use cgal if available)
-mesh = UnitCircleMesh(50)
+# Read mesh
+mesh = Mesh("../circle_yplane.xml.gz")
 
 # Create function space
 V = VectorFunctionSpace(mesh, "Lagrange", 1)
@@ -51,7 +51,7 @@ def eps(u):
     return sym(grad(u))
 
 def sigma(epsilon):
-    return  2*mu*epsilon + lmbda*tr(epsilon)*Identity(w.cell().d)
+    return 2*mu*epsilon + lmbda*tr(epsilon)*Identity(w.geometric_dimension())
 
 # Weak formulation
 F = inner(sigma(eps(u)), eps(w))*dx - dot(f, w)*dx

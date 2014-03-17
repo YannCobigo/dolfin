@@ -18,8 +18,8 @@
 // First added:  2012-09-14
 // Last changed: 2012-09-18
 
-#ifndef __PLOTTER__H
-#define __PLOTTER_H
+#ifndef __DEMO_PLOTTER_H
+#define __DEMO_PLOTTER_H
 
 #include <QObject>
 #include <QVTKWidget.h>
@@ -35,11 +35,11 @@ class Plotter : public QObject, public dolfin::VTKPlotter
 
 public:
 
-  Plotter(boost::shared_ptr<const Variable> obj,
+  Plotter(std::shared_ptr<const Variable> obj,
           QWidget *parent=NULL);
 
-  Plotter(boost::shared_ptr<const dolfin::Expression> e,
-          boost::shared_ptr<const dolfin::Mesh> m,
+  Plotter(std::shared_ptr<const dolfin::Expression> e,
+          std::shared_ptr<const dolfin::Mesh> m,
           QWidget *parent=NULL);
 
   virtual bool key_pressed(int modifiers, char key, std::string keysym);

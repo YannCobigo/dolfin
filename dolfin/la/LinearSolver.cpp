@@ -19,7 +19,7 @@
 // Modified by Garth N. Wells, 2010.
 //
 // First added:  2008-05-10
-// Last changed: 2011-10-19
+// Last changed: 2013-12-04
 
 #include "DefaultFactory.h"
 #include "KrylovSolver.h"
@@ -71,6 +71,9 @@ LinearSolver::LinearSolver(std::string method,
 
     // Initialize solver
     solver.reset(new LUSolver(method));
+
+    // Set parameter type
+    _parameter_type = "lu_solver";
   }
   else if (method == "cholesky")
   {
@@ -88,6 +91,9 @@ LinearSolver::LinearSolver(std::string method,
 
     // Initialize solver
     solver.reset(new CholmodCholeskySolver());
+
+    // Set parameter type
+    _parameter_type = "lu_solver";
   }
   else if (in_list(method, krylov_methods))
   {
@@ -95,6 +101,9 @@ LinearSolver::LinearSolver(std::string method,
 
     // Initialize solver
     solver.reset(new KrylovSolver(method, preconditioner));
+
+    // Set parameter type
+    _parameter_type = "krylov_solver";
   }
   else
   {
@@ -117,15 +126,17 @@ LinearSolver::~LinearSolver()
   // Do nothing
 }
 //-----------------------------------------------------------------------------
-void LinearSolver::set_operator(const boost::shared_ptr<const GenericLinearOperator> A)
+void
+LinearSolver::set_operator(std::shared_ptr<const GenericLinearOperator> A)
 {
   dolfin_assert(solver);
   solver->parameters.update(parameters);
   solver->set_operator(A);
 }
 //-----------------------------------------------------------------------------
-void LinearSolver::set_operators(const boost::shared_ptr<const GenericLinearOperator> A,
-                                 const boost::shared_ptr<const GenericLinearOperator> P)
+void
+LinearSolver::set_operators(std::shared_ptr<const GenericLinearOperator> A,
+                            std::shared_ptr<const GenericLinearOperator> P)
 {
   dolfin_assert(solver);
   solver->parameters.update(parameters);

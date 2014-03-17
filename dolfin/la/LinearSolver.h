@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2011 Anders Logg and Garth N. Wells
+// Copyright (C) 2004-2013 Anders Logg and Garth N. Wells
 //
 // This file is part of DOLFIN.
 //
@@ -19,13 +19,14 @@
 // Modified by Ola Skavhaug 2008.
 //
 // First added:  2004-06-19
-// Last changed: 2011-10-06
+// Last changed: 2013-12-04
 
 #ifndef __LINEAR_SOLVER_H
 #define __LINEAR_SOLVER_H
 
+#include <memory>
 #include <string>
-#include <boost/scoped_ptr.hpp>
+#include <memory>
 #include <dolfin/common/types.h>
 #include "GenericLinearSolver.h"
 
@@ -52,11 +53,11 @@ namespace dolfin
     ~LinearSolver();
 
     /// Set the operator (matrix)
-    void set_operator(const boost::shared_ptr<const GenericLinearOperator> A);
+    void set_operator(std::shared_ptr<const GenericLinearOperator> A);
 
     /// Set the operator (matrix) and preconitioner matrix
-    void set_operators(const boost::shared_ptr<const GenericLinearOperator> A,
-                       const boost::shared_ptr<const GenericLinearOperator> P);
+    void set_operators(std::shared_ptr<const GenericLinearOperator> A,
+                       std::shared_ptr<const GenericLinearOperator> P);
 
     /// Solve linear system Ax = b
     std::size_t solve(const GenericLinearOperator& A,
@@ -72,12 +73,28 @@ namespace dolfin
       return p;
     }
 
+    // FIXME: This should not be needed. Need to cleanup linear solver
+    // name jungle: default, lu, iterative, direct, krylov, etc
+    /// Return parameter type: "krylov_solver" or "lu_solver"
+    std::string parameter_type() const
+    {
+      return _parameter_type;
+    }
+
+    /// Update solver parameters (pass parameters down to wrapped implementation)
+    virtual void update_parameters(const Parameters& parameters)
+    {
+      this->parameters.update(parameters);
+      solver->update_parameters(parameters);
+    }
+
   private:
 
     // Friends
     friend class LUSolver;
     friend class KrylovSolver;
     friend class LinearVariationalSolver;
+    friend class NewtonSolver;
 
     // Check whether string is contained in list
     static bool
@@ -85,7 +102,11 @@ namespace dolfin
             const std::vector<std::pair<std::string, std::string> > methods);
 
     // Solver
-    boost::scoped_ptr<GenericLinearSolver> solver;
+    std::unique_ptr<GenericLinearSolver> solver;
+
+    // FIXME: This should not be needed
+    // Parameter type
+    std::string _parameter_type;
 
   };
 

@@ -83,7 +83,8 @@ public:
 	continue;
 
       // Skip testing uBLAS in parallel
-      if (dolfin::MPI::num_processes() > 1 && backends[i] == "uBLAS")
+      if (dolfin::MPI::size(MPI_COMM_WORLD) > 1
+          && backends[i] == "uBLAS")
       {
 	info("Not running uBLAS test in parallel");
 	continue;
@@ -129,6 +130,7 @@ int main()
 {
   // Add backends supporting the LinearOperator interface
   backends.push_back("PETSc");
+  backends.push_back("Epetra");
   backends.push_back("uBLAS");
 
   DOLFIN_TEST;

@@ -15,10 +15,10 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
 //
-// Modified by Anders Logg 2010-2011
+// Modified by Anders Logg 2010-2013
 //
 // First added:  2010-08-19
-// Last changed: 2011-06-22
+// Last changed: 2013-11-15
 
 #include <sstream>
 #include <stdio.h>
@@ -53,6 +53,16 @@ void GenericAdaptiveVariationalSolver::solve(const double tol)
 {
   log(INFO, "Solving variational problem adaptively");
 
+  // Check that goal functional has at least one coefficient (last one
+  // is the solution variable u)
+  if (goal->num_coefficients() == 0)
+  {
+    dolfin_error("AdaptiveLinearVariationalSolver.cpp",
+                 "adaptively solve variational problem",
+                 "The goal functional must have at least one coefficient. "
+                 "Check that it has been defined in terms of a Function, not a TrialFunction");
+  }
+
   // Initialize storage of meshes and indicators
   std::string label = parameters["data_label"];
   TimeSeries series(label);
@@ -75,7 +85,7 @@ void GenericAdaptiveVariationalSolver::solve(const double tol)
     }
 
     // Initialize adaptive data
-    boost::shared_ptr<Parameters> datum(new Parameters("adaptive_data"));
+    std::shared_ptr<Parameters> datum(new Parameters("adaptive_data"));
     _adaptive_data.push_back(datum);
     const int refinement_level = i;
     datum->add("refinement_level", refinement_level);
@@ -94,7 +104,7 @@ void GenericAdaptiveVariationalSolver::solve(const double tol)
     //--- Stage 0: Solve primal problem
     begin(PROGRESS, "Stage %d.0: Solving primal problem...", i);
     timer.start();
-    boost::shared_ptr<const Function> u = solve_primal();
+    std::shared_ptr<const Function> u = solve_primal();
     datum->add("time_solve_primal", timer.stop());
 
     // Extract views to primal trial space and mesh
@@ -179,7 +189,7 @@ void GenericAdaptiveVariationalSolver::solve(const double tol)
           max_iterations);
 }
 //-----------------------------------------------------------------------------
-std::vector<boost::shared_ptr<Parameters> >
+std::vector<std::shared_ptr<Parameters> >
 GenericAdaptiveVariationalSolver::adaptive_data() const
 {
   return _adaptive_data;

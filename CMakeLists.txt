@@ -8,9 +8,26 @@ cmake_minimum_required(VERSION 2.8)
 
 project(DOLFIN)
 set(DOLFIN_VERSION_MAJOR "1")
-set(DOLFIN_VERSION_MINOR "2")
+set(DOLFIN_VERSION_MINOR "3")
 set(DOLFIN_VERSION_MICRO "0+")
 set(DOLFIN_VERSION "${DOLFIN_VERSION_MAJOR}.${DOLFIN_VERSION_MINOR}.${DOLFIN_VERSION_MICRO}")
+
+#------------------------------------------------------------------------------
+# Get GIT changeset, if available
+
+# Check for git
+find_program(GIT_FOUND git)
+
+if (GIT_FOUND)
+  # Get the commit hash of the working branch
+  execute_process(COMMAND git rev-parse HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+else()
+  set(GIT_COMMIT_HASH "unknown")
+endif()
 
 #------------------------------------------------------------------------------
 # General configuration
@@ -44,21 +61,9 @@ option(DOLFIN_ENABLE_TESTING "Enable testing." OFF)
 option(DOLFIN_ENABLE_BENCHMARKS "Enable benchmark programs." OFF)
 option(DOLFIN_ENABLE_DOCS "Enable generation of documentation." ON)
 option(DOLFIN_SKIP_BUILD_TESTS "Skip build tests." OFF)
-
-#option(CMAKE_SKIP_RPATH "Do not add runtime paths when using shared libraries." ON)
-
+option(DOLFIN_DEPRECATION_ERROR "Turn deprecation warnings into errors." OFF)
 #------------------------------------------------------------------------------
 # Enable or disable optional packages
-
-# FIXME: Discuss which should be enabled by default
-# FIXME: AL: I suggest only the Python wrappers
-# FIXME: GNW: That would lead to most demos failing (no LU solver)
-# FIXME: GNW: I suggest enabling everything, but using QUIET to eliminate
-#             excessive output
-# FIXME: JR: What about adopting the way they do this in Trilinos? Then we
-#            could have options like DOLFIN_ENABLE_ALL_PACKAGES for enabling
-#            everything and DOLFIN_ENABLE_DEFAULT_PACKAGES for enabling only
-#            some default packages.
 
 # List optional packages
 set(OPTIONAL_PACKAGES "")
@@ -90,6 +95,13 @@ foreach (OPTIONAL_PACKAGE ${OPTIONAL_PACKAGES})
 endforeach()
 
 #------------------------------------------------------------------------------
+# General compiler defintions
+
+if (DOLFIN_DEPRECATION_ERROR)
+  list(APPEND DOLFIN_CXX_DEFINITIONS "-DDOLFIN_DEPRECATION_ERROR")
+endif()
+
+#------------------------------------------------------------------------------
 # Package-specific options
 
 option(CGAL_DISABLE_ROUNDING_MATH_CHECK "Disable rounding math check in CGAL. This permits Valgrind to run." OFF)
@@ -116,9 +128,14 @@ if (HAVE_PEDANTIC)
   set(DOLFIN_CXX_DEVELOPER_FLAGS "-Wall -Werror -pedantic ${DOLFIN_CXX_DEVELOPER_FLAGS}")
 endif()
 
-CHECK_CXX_COMPILER_FLAG(-std=c++98 HAVE_STD)
-if (HAVE_STD AND CMAKE_COMPILER_IS_GNUCXX)
-  set(DOLFIN_CXX_DEVELOPER_FLAGS "-std=c++98 ${DOLFIN_CXX_DEVELOPER_FLAGS}")
+CHECK_CXX_COMPILER_FLAG(-std=c++11 HAVE_STD_CPP11)
+if (HAVE_STD_CPP11)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+else()
+  CHECK_CXX_COMPILER_FLAG(-std=c++0x HAVE_STD_CPP0x)
+  if (HAVE_STD_CPP0x)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+  endif()
 endif()
 
 # Debug flags
@@ -233,33 +250,25 @@ endif()
 set(Boost_NO_BOOST_CMAKE true)
 
 set(Boost_USE_MULTITHREADED $ENV{BOOST_USE_MULTITHREADED})
-set(Boost_ADDITIONAL_VERSIONS 1.43 1.43.0 1.44 1.44.0 1.45 1.45.0 1.46 1.46.0 1.46.1 1.47 1.47.0 1.48 1.48.0 1.49 1.49.0 1.50 1.50.0)
+set(Boost_ADDITIONAL_VERSIONS 1.48 1.48.0 1.49 1.49.0 1.50 1.50.0)
 
-find_package(Boost 1.36 QUIET REQUIRED)
+find_package(Boost 1.48 QUIET REQUIRED)
 
 set(DOLFIN_BOOST_COMPONENTS filesystem program_options system thread iostreams)
-if (DOLFIN_ENABLE_MPI AND MPI_CXX_FOUND)
-  list(APPEND DOLFIN_BOOST_COMPONENTS mpi serialization)
-endif()
-
-# Boost timer was not a separate Boost component until version 1.48
-if ("${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}" VERSION_GREATER "1.47")
-  list(APPEND DOLFIN_BOOST_COMPONENTS timer chrono)
-endif()
 find_package(Boost COMPONENTS ${DOLFIN_BOOST_COMPONENTS} REQUIRED)
 
 # Check for required package UFC
-find_package(UFC 2.2.0 QUIET HINTS ${UFC_DIR})
+find_package(UFC 1.3.0 QUIET HINTS ${UFC_DIR})
 if (NOT UFC_FOUND)
   message(FATAL_ERROR "Could not find a configuration file for package UFC that is "
-    "compatible with requested version 2.2.0.\n"
+    "compatible with requested version 1.3.0.\n"
     "Set UFC_DIR to the directory containing a CMake configuration file for UFC.")
 else()
   message(STATUS "UFC version: ${UFC_VERSION_STRING}")
 endif()
 
-# Check for required package Armadillo
-find_package(Armadillo 2.4.2 REQUIRED)
+# Check for required package Eigen3
+find_package(Eigen3 3.0.0 REQUIRED)
 
 # Check for required package LibXml2
 find_package(LibXml2 REQUIRED)
@@ -271,7 +280,38 @@ find_package(LibXml2 REQUIRED)
 #       is used to get the installation path for dolfin_utils
 find_package(PythonInterp 2)
 if (DOLFIN_ENABLE_PYTHON)
-  find_package(PythonLibs 2)
+
+  # Set variables to help find Python library that is compatible with
+  # interpreter
+  if (PYTHONINTERP_FOUND)
+    # Get Python include path from Python interpretter
+    execute_process(COMMAND "${PYTHON_EXECUTABLE}" -c
+                           "import distutils.sysconfig, sys; sys.stdout.write(distutils.sysconfig.get_python_inc())"
+                    OUTPUT_VARIABLE _PYTHON_INCLUDE_PATH
+                    RESULT_VARIABLE _PYTHON_INCLUDE_RESULT)
+
+    # Get Python library path from interpreter
+    execute_process(COMMAND "${PYTHON_EXECUTABLE}" -c
+                          "import os, sys, inspect; sys.stdout.write(os.path.split(os.path.split(inspect.getfile(inspect))[0])[0])"
+                    OUTPUT_VARIABLE _PYTHON_LIB_PATH
+                    RESULT_VARIABLE _PYTHON_LIB_RESULT)
+
+    # Set include path, if returned by interpreter
+    if ("${_PYTHON_INCLUDE_RESULT}" STREQUAL "0")
+      set(PYTHON_INCLUDE_DIR ${_PYTHON_INCLUDE_PATH})
+    endif()
+
+    # Add a search path for Python library based on output from
+    # interpreter
+    set(CMAKE_LIBRARY_PATH_SAVE ${CMAKE_LIBRARY_PATH})
+    if ("${_PYTHON_LIB_RESULT}" STREQUAL "0")
+      set(CMAKE_LIBRARY_PATH ${_PYTHON_LIB_PATH})
+    endif()
+
+    # Find Pythons libs
+    find_package(PythonLibs ${PYTHON_VERSION_STRING} EXACT QUIET REQUIRED)
+    set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH_SAVE})
+  endif()
 
   # If Python is found, check for NumPy and SWIG
   if (PYTHONINTERP_FOUND AND PYTHONLIBS_FOUND)
@@ -290,12 +330,15 @@ endif()
 # Check for PETSc, SLEPc, TAO and petsc4py
 if (DOLFIN_ENABLE_PETSC)
   find_package(PETSc 3.2)
+
   if (PETSC_FOUND AND DOLFIN_ENABLE_SLEPC)
     find_package(SLEPc 3.2)
   endif()
+
   if (PETSC_FOUND AND DOLFIN_ENABLE_TAO)
     find_package(TAO)
   endif()
+
   if (PETSC_FOUND AND PYTHON_FOUND AND DOLFIN_ENABLE_PETSC4PY)
     find_package(PETSc4py)
     if (PETSC4PY_FOUND)
@@ -306,6 +349,12 @@ if (DOLFIN_ENABLE_PETSC)
       endif()
     endif()
   endif()
+
+  # Enable PETSc SNES for PETSc verion > 3.2
+  if (PETSC_VERSION VERSION_GREATER 3.2.100)
+    set(PETSC_ENABLE_SNES TRUE)
+  endif()
+
 endif()
 
 # Check for ParMETIS and SCOTCH
@@ -361,7 +410,7 @@ endif()
 if (DOLFIN_ENABLE_TRILINOS)
   message(STATUS "Checking for Trilinos")
   find_package(Trilinos PATHS ${TRILINOS_DIR} ${Trilinos_DIR} $ENV{TRILINOS_DIR} QUIET)
-  set(DOLFIN_TRILINOS_PACKAGES "Epetra;Zoltan;ML;Ifpack;Amesos")
+  set(DOLFIN_TRILINOS_PACKAGES "Epetra;Zoltan;ML;Ifpack;Amesos;Belos")
 
   if ("${Trilinos_VERSION}" VERSION_LESS "11.0.0")
     set(Trilinos_FOUND FALSE)
@@ -378,8 +427,12 @@ if (DOLFIN_ENABLE_TRILINOS)
     foreach (required_package ${DOLFIN_TRILINOS_PACKAGES})
 
       # Search for required package in list of available packages
-      set(${required_trilinos_package}_found false)
-      list(FIND Trilinos_PACKAGE_LIST ${required_package} required_trilinos_package_found)
+      list(FIND Trilinos_PACKAGE_LIST ${required_package} required_trilinos_package_index)
+      if(required_trilinos_package_index EQUAL -1)
+          set(required_trilinos_package_found false)
+      else()
+          set(required_trilinos_package_found true)
+      endif()
 
       # Print whether or not package is found
       if (required_trilinos_package_found)
@@ -403,6 +456,8 @@ if (DOLFIN_ENABLE_TRILINOS)
         # Loop over libs and get full path
         foreach (lib ${${package}_LIBRARIES})
           find_library(TRILINOS_LIB_${lib} ${lib} PATHS ${${package}_LIBRARY_DIRS} NO_DEFAULT_PATH)
+          # Also search the default paths
+          find_library(TRILINOS_LIB_${lib} ${lib})
           if (TRILINOS_LIB_${lib})
             list(APPEND DOLFIN_TRILINOS_LIBRARIES ${TRILINOS_LIB_${lib}})
           endif()
@@ -436,6 +491,16 @@ endif()
 # Check for cppunit
 if (DOLFIN_ENABLE_UNIT_TESTS)
   find_package(CppUnit)
+
+  # Older version of CPPUNIT use std::auto_ptr, which is deprecated
+  if (${CPPUNIT_VERSION} LESS 1.13.1)
+    include(CheckCXXCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG(-Wno-deprecated HAVE_NO_DEPRECATED)
+    if (HAVE_NO_DEPRECATED)
+      set(CMAKE_CXX_FLAGS_DEVELOPER "${CMAKE_CXX_FLAGS_DEVELOPER} -Wno-deprecated")
+    endif()
+  endif()
+
 endif()
 
 # Check for Sphinx
@@ -450,7 +515,7 @@ endif()
 
 # Check for VTK
 if (DOLFIN_ENABLE_VTK)
-  find_package(VTK QUIET HINTS ${VTK_DIR} $ENV{VTK_DIR})
+  find_package(VTK HINTS ${VTK_DIR} $ENV{VTK_DIR})
   set(VTK_VERSION "${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}")
   if (VTK_FOUND)
     if ("${VTK_VERSION}" VERSION_LESS "5.2")
@@ -529,26 +594,36 @@ if (PYTHONINTERP_FOUND)
 
   if (NOT DEFINED DOLFIN_INSTALL_PYTHON_MODULE_DIR)
     # Get path for platform-dependent Python modules (since we install a binary libary)
-    execute_process(
-      COMMAND ${PYTHON_EXECUTABLE} -c "import sys, distutils.sysconfig; sys.stdout.write(distutils.sysconfig.get_python_lib(plat_specific=True, prefix='${CMAKE_INSTALL_PREFIX}'))"
+
+    # Python command string to discover module install location
+    if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+      set(PYTHON_LIB_DISCOVER_STR "import sys, distutils.sysconfig; sys.stdout.write(distutils.sysconfig.get_python_lib(plat_specific=True))")
+    else()
+      set(PYTHON_LIB_DISCOVER_STR "import sys, distutils.sysconfig; sys.stdout.write(distutils.sysconfig.get_python_lib(plat_specific=True, prefix='${CMAKE_INSTALL_PREFIX}'))")
+    endif()
+
+    # Probe Python interpreter
+    execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "${PYTHON_LIB_DISCOVER_STR}"
       OUTPUT_VARIABLE DOLFIN_INSTALL_PYTHON_MODULE_DIR
       )
-    # Strip off CMAKE_INSTALL_PREFIX (is added later by CMake)
-    string(REGEX REPLACE "${CMAKE_INSTALL_PREFIX}(/|\\\\)([^ ]*)" "\\2"
-      DOLFIN_INSTALL_PYTHON_MODULE_DIR "${DOLFIN_INSTALL_PYTHON_MODULE_DIR}")
     set(DOLFIN_INSTALL_PYTHON_MODULE_DIR ${DOLFIN_INSTALL_PYTHON_MODULE_DIR}
       CACHE PATH "Python extension module installation directory.")
   endif()
 
   if (NOT DEFINED DOLFIN_INSTALL_PYTHON_PURE_MODULE_DIR)
     # Get path for pure Python modules
-    execute_process(
-      COMMAND ${PYTHON_EXECUTABLE} -c "import sys, distutils.sysconfig; sys.stdout.write(distutils.sysconfig.get_python_lib(plat_specific=False, prefix='${CMAKE_INSTALL_PREFIX}'))"
+
+    # Python command string to discover module install location
+    if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+      set(PYTHON_LIB_DISCOVER_STR "import sys, distutils.sysconfig; sys.stdout.write(distutils.sysconfig.get_python_lib(plat_specific=False))")
+    else()
+      set(PYTHON_LIB_DISCOVER_STR "import sys, distutils.sysconfig; sys.stdout.write(distutils.sysconfig.get_python_lib(plat_specific=False, prefix='${CMAKE_INSTALL_PREFIX}'))")
+    endif()
+
+    # Probe Pyton interpreter
+    execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "${PYTHON_LIB_DISCOVER_STR}"
       OUTPUT_VARIABLE DOLFIN_INSTALL_PYTHON_PURE_MODULE_DIR
       )
-    # Strip off CMAKE_INSTALL_PREFIX (is added later by CMake)
-    string(REGEX REPLACE "${CMAKE_INSTALL_PREFIX}(/|\\\\)([^ ]*)" "\\2"
-      DOLFIN_INSTALL_PYTHON_PURE_MODULE_DIR "${DOLFIN_INSTALL_PYTHON_PURE_MODULE_DIR}")
     set(DOLFIN_INSTALL_PYTHON_PURE_MODULE_DIR ${DOLFIN_INSTALL_PYTHON_PURE_MODULE_DIR}
       CACHE PATH "Python module installation directory.")
   endif()
@@ -556,7 +631,7 @@ if (PYTHONINTERP_FOUND)
 endif()
 
 #------------------------------------------------------------------------------
-# Installation of dolfin Python module
+# Installation of DOLFIN and FEniCS Python modules
 
 if (DOLFIN_ENABLE_PYTHON AND PYTHON_FOUND)
   install(DIRECTORY
@@ -567,14 +642,20 @@ if (DOLFIN_ENABLE_PYTHON AND PYTHON_FOUND)
     PATTERN "*.in" EXCLUDE
     )
 
-  get_filename_component(SWIG_BINARY ${SWIG_EXECUTABLE} NAME)
-
   configure_file(${CMAKE_SOURCE_DIR}/site-packages/dolfin/common/globalparameters.py.in
     ${CMAKE_BINARY_DIR}/globalparameters.py @ONLY)
 
   install(FILES ${CMAKE_BINARY_DIR}/globalparameters.py
     DESTINATION ${DOLFIN_INSTALL_PYTHON_MODULE_DIR}/dolfin/common/
     COMPONENT RuntimeLibraries
+    )
+
+  install(DIRECTORY
+    ${CMAKE_SOURCE_DIR}/site-packages/fenics
+    DESTINATION ${DOLFIN_INSTALL_PYTHON_MODULE_DIR}
+    USE_SOURCE_PERMISSIONS
+    COMPONENT RuntimeLibraries
+    PATTERN "*.in" EXCLUDE
     )
 endif()
 
@@ -677,7 +758,8 @@ configure_file(${DOLFIN_CMAKE_DIR}/templates/dolfin-version.in
                ${CMAKE_BINARY_DIR}/dolfin-version @ONLY)
 install(FILES ${CMAKE_BINARY_DIR}/dolfin-version
         DESTINATION ${DOLFIN_BIN_DIR}
-	PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE
+	PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ
+        OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE
         COMPONENT RuntimeExecutables)
 
 #------------------------------------------------------------------------------
@@ -696,12 +778,12 @@ install(FILES ${CMAKE_BINARY_DIR}/dolfin-get-demos
 # FIXME: Generate files in Build directory instead, at least for bench, demo and tests
 
 set(COPY_DEMO_TEST_DEMO_DATA FALSE)
-if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/Poisson.h)
+if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/documented/poisson/cpp/Poisson.h)
   message(STATUS "")
   message(STATUS "Generating form files in demo, test, bench and dolfin directories. May take some time...")
   message(STATUS "----------------------------------------------------------------------------------------")
   execute_process(
-    COMMAND ${PYTHON_EXECUTABLE} ${DOLFIN_SOURCE_DIR}/cmake/scripts/generate-form-files 
+    COMMAND ${PYTHON_EXECUTABLE} ${DOLFIN_SOURCE_DIR}/cmake/scripts/generate-form-files
     WORKING_DIRECTORY ${DOLFIN_SOURCE_DIR}
     RESULT_VARIABLE FORM_GENERATION_RESULT
     OUTPUT_VARIABLE FORM_GENERATION_OUTPUT
@@ -710,8 +792,8 @@ if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/Poisson.h)
   if (FORM_GENERATION_RESULT)
 
     # Cleanup so download is triggered next time we run cmake
-    if (EXISTS ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/Poisson.h)
-      file(REMOVE ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/Poisson.h)
+    if (EXISTS ${DOLFIN_SOURCE_DIR}/demo/documented/poisson/cpp/Poisson.h)
+      file(REMOVE ${DOLFIN_SOURCE_DIR}/demo/documented/poisson/cpp/Poisson.h)
     endif()
 
     message(FATAL_ERROR "Generation of form files failed: \n${FORM_GENERATION_OUTPUT}")
@@ -723,12 +805,12 @@ endif()
 # Generate CMakeLists.txt files for tests, bench and demos if not exists
 # FIXME: Generate files in Build directory instead?
 # NOTE: We need to call this script after generate-formfiles
-if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/CMakeLists.txt)
+if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/documented/poisson/cpp/CMakeLists.txt)
   message(STATUS "")
   message(STATUS "Generating CMakeLists.txt files in demo, test and bench directories")
   message(STATUS "-------------------------------------------------------------------")
   execute_process(
-    COMMAND ${PYTHON_EXECUTABLE} ${DOLFIN_SOURCE_DIR}/cmake/scripts/generate-cmakefiles 
+    COMMAND ${PYTHON_EXECUTABLE} ${DOLFIN_SOURCE_DIR}/cmake/scripts/generate-cmakefiles
     WORKING_DIRECTORY ${DOLFIN_SOURCE_DIR}
     RESULT_VARIABLE CMAKE_GENERATION_RESULT
     OUTPUT_VARIABLE CMAKE_GENERATION_OUTPUT
@@ -737,8 +819,8 @@ if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/CMakeLists.txt)
   if (CMAKE_GENERATION_RESULT)
 
     # Cleanup so download is triggered next time we run cmake
-    if (EXISTS ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/CMakeLists.txt)
-      file(REMOVE ${DOLFIN_SOURCE_DIR}/demo/pde/poisson/cpp/CMakeLists.txt)
+    if (EXISTS ${DOLFIN_SOURCE_DIR}/demo/documented/poisson/cpp/CMakeLists.txt)
+      file(REMOVE ${DOLFIN_SOURCE_DIR}/demo/documented/poisson/cpp/CMakeLists.txt)
     endif()
     message(FATAL_ERROR "Generation of CMakeLists.txt files failed: \n${CMAKE_GENERATION_OUTPUT}")
   endif()
@@ -749,13 +831,13 @@ endif()
 #------------------------------------------------------------------------------
 # Check if data is downloaded
 
-if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/la/eigenvalue/box_with_dent.xml.gz)
+if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/documented/eigenvalue/box_with_dent.xml.gz)
   # FIXME: What if we do not have internet connection
   message(STATUS "")
   message(STATUS "Download demo and test data. May take some time...")
   message(STATUS "--------------------------------------------------")
   execute_process(
-    COMMAND ${DOLFIN_SOURCE_DIR}/cmake/scripts/download-demo-data 
+    COMMAND ${DOLFIN_SOURCE_DIR}/cmake/scripts/download-demo-data
     WORKING_DIRECTORY ${DOLFIN_SOURCE_DIR}
     RESULT_VARIABLE DOWNLOAD_DEMO_DATA_RESULT
     OUTPUT_VARIABLE DOWNLOAD_DEMO_DATA_OUTPUT
@@ -764,15 +846,15 @@ if (NOT EXISTS ${DOLFIN_SOURCE_DIR}/demo/la/eigenvalue/box_with_dent.xml.gz)
   if (DOWNLOAD_DEMO_DATA_RESULT)
 
     # Cleanup so download is triggered next time we run cmake
-    if (EXISTS ${DOLFIN_SOURCE_DIR}/demo/la/eigenvalue/box_with_dent.xml.gz)
-      file(REMOVE ${DOLFIN_SOURCE_DIR}/demo/la/eigenvalue/box_with_dent.xml.gz)
+    if (EXISTS ${DOLFIN_SOURCE_DIR}/demo/documented/eigenvalue/box_with_dent.xml.gz)
+      file(REMOVE ${DOLFIN_SOURCE_DIR}/demo/documented/eigenvalue/box_with_dent.xml.gz)
     endif()
     message(WARNING "Download failed: \n${DOWNLOAD_DEMO_DATA_OUTPUT}")
   endif()
   set(COPY_DEMO_TEST_DEMO_DATA TRUE)
 endif()
 
-# If data have been generated or downloaded in the demo/bench/test direcories 
+# If data have been generated or downloaded in the demo/bench/test direcories
 # we need to copy them to the build directories
 # FIXME: We should probably just generate them directly in the build directory...
 if (COPY_DEMO_TEST_DEMO_DATA)

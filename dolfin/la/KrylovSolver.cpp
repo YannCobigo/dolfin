@@ -19,7 +19,7 @@
 // Modified by Anders Logg 2008-2012
 //
 // First added:  2007-07-03
-// Last changed: 2012-08-21
+// Last changed: 2013-11-25
 
 #include <dolfin/common/Timer.h>
 #include <dolfin/parameter/GlobalParameters.h>
@@ -59,10 +59,16 @@ Parameters KrylovSolver::default_parameters()
 
   // General preconditioner options
   Parameters p_pc("preconditioner");
-  p_pc.add("shift_nonzero",        0.0);
-  p_pc.add("reuse",                false);
-  p_pc.add("same_nonzero_pattern", false);
-  p_pc.add("report",               false);
+  p_pc.add("shift_nonzero", 0.0);
+
+  // Re-use options
+  std::set<std::string> structure_options;
+  structure_options.insert("same");
+  structure_options.insert("same_nonzero_pattern");
+  structure_options.insert("different_nonzero_pattern");
+  p_pc.add("structure", "different_nonzero_pattern", structure_options);
+
+  p_pc.add("report", false);
 
   // ILU preconditioner options
   Parameters p_pc_ilu("ilu");
@@ -88,7 +94,7 @@ KrylovSolver::KrylovSolver(std::string method, std::string preconditioner)
   init(method, preconditioner);
 }
 //-----------------------------------------------------------------------------
-KrylovSolver::KrylovSolver(boost::shared_ptr<const GenericLinearOperator> A,
+KrylovSolver::KrylovSolver(std::shared_ptr<const GenericLinearOperator> A,
                            std::string method, std::string preconditioner)
 {
   // Initialize solver
@@ -103,15 +109,17 @@ KrylovSolver::~KrylovSolver()
   // Do nothing
 }
 //-----------------------------------------------------------------------------
-void KrylovSolver::set_operator(const boost::shared_ptr<const GenericLinearOperator> A)
+void
+KrylovSolver::set_operator(std::shared_ptr<const GenericLinearOperator> A)
 {
   dolfin_assert(solver);
   solver->parameters.update(parameters);
   solver->set_operator(A);
 }
 //-----------------------------------------------------------------------------
-void KrylovSolver::set_operators(const boost::shared_ptr<const GenericLinearOperator> A,
-                                 const boost::shared_ptr<const GenericLinearOperator> P)
+void
+KrylovSolver::set_operators(std::shared_ptr<const GenericLinearOperator> A,
+                            std::shared_ptr<const GenericLinearOperator> P)
 {
   dolfin_assert(solver);
   solver->parameters.update(parameters);

@@ -18,7 +18,7 @@
 // Modified by Kristoffer Selim 2008
 //
 // First added:  2006-06-05
-// Last changed: 2013-08-26
+// Last changed: 2014-01-06
 
 #ifndef __INTERVAL_CELL_H
 #define __INTERVAL_CELL_H
@@ -57,7 +57,7 @@ namespace dolfin
     std::size_t orientation(const Cell& cell) const;
 
     /// Create entities e of given topological dimension from vertices v
-    void create_entities(std::vector<std::vector<std::size_t> >& e, std::size_t dim,
+    void create_entities(std::vector<std::vector<unsigned int> >& e, std::size_t dim,
                          const unsigned int* v) const;
 
     /// Refine cell uniformly
@@ -89,10 +89,16 @@ namespace dolfin
                const std::vector<std::size_t>& local_to_global_vertex_indices) const;
 
     /// Check whether given point collides with cell
+    virtual
     bool collides(const Cell& cell, const Point& point) const;
 
     /// Check whether given entity collides with cell
+    virtual
     bool collides(const Cell& cell, const MeshEntity& entity) const;
+
+    /// Compute triangulation of intersection of two cells
+    virtual std::vector<double>
+    triangulate_intersection(const Cell& c0, const Cell& c1) const;
 
     /// Return description of cell type
     std::string description(bool plural) const;

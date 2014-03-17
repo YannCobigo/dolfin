@@ -19,7 +19,7 @@
 // Modified by Jan Blechta 2013
 //
 // First added:  2006-06-05
-// Last changed: 2013-08-26
+// Last changed: 2014-01-06
 
 #ifndef __TRIANGLE_CELL_H
 #define __TRIANGLE_CELL_H
@@ -52,20 +52,19 @@ namespace dolfin
     std::size_t orientation(const Cell& cell) const;
 
     /// Create entities e of given topological dimension from vertices v
-    void create_entities(std::vector<std::vector<std::size_t> >& e, std::size_t dim,
+    void create_entities(std::vector<std::vector<unsigned int> >& e,
+                         std::size_t dim,
                          const unsigned int* v) const;
 
     /// Refine cell uniformly
-    void refine_cell(Cell& cell, MeshEditor& editor, std::size_t& current_cell) const;
+    void refine_cell(Cell& cell, MeshEditor& editor,
+                     std::size_t& current_cell) const;
 
     /// Compute (generalized) volume (area) of triangle
     double volume(const MeshEntity& triangle) const;
 
     /// Compute diameter of triangle
     double diameter(const MeshEntity& triangle) const;
-
-    /// Compute 2.*inradius/circumradius for given triangle
-    virtual double radius_ratio(const Cell& triangle) const;
 
     /// Compute squared distance to given point
     double squared_distance(const Cell& cell, const Point& point) const;
@@ -101,6 +100,10 @@ namespace dolfin
     /// Check whether given entity collides with cell
     bool collides(const Cell& cell, const MeshEntity& entity) const;
 
+    /// Compute triangulation of intersection of two cells
+    std::vector<double>
+    triangulate_intersection(const Cell& c0, const Cell& c1) const;
+
     /// Return description of cell type
     std::string description(bool plural) const;
 
@@ -108,15 +111,6 @@ namespace dolfin
 
     // Find local index of edge i according to ordering convention
     std::size_t find_edge(std::size_t i, const Cell& cell) const;
-
-    // Compute signed area of triangle abc
-    inline double signed_area(const Point& a, const Point& b, const Point c) const
-    { return (a.x() - c.x())*(b.y() - c.y()) - (a.y() - c.y())*(b.x() - c.x()); }
-
-    // Check whether edges ab and cd collide
-    bool collides(const Point& a, const Point& b,
-                  const Point& c, const Point& d) const;
-
   };
 
 }

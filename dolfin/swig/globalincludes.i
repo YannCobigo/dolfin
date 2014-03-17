@@ -39,13 +39,19 @@
 
 // Do not expand default arguments in C++ by generating two an extra 
 // function in the SWIG layer. This reduces code bloat.
-%feature("compactdefaultargs");
+// NOTE: Hake Commenting out compactdefaultargs as it creates problems for SWIG 
+// NOTE: to evaluate bool arguments with default values where another method with
+// NOTE: the same number of arguments excists. 
+//%feature("compactdefaultargs");
 
 // STL SWIG string class
 %include <std_string.i>
 
 // Include information about swig version
 %include "dolfin/swig/version.i"
+
+// Include SWIG defines
+%include "dolfin/swig/defines.i"
 
 // Include all forward declarations
 %include "dolfin/swig/forwarddeclarations.i"
